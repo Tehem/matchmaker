@@ -1,16 +1,14 @@
 package main
 
 import (
-	"io/ioutil"
-	"github.com/rossille/matchmaker/match"
-	"github.com/rossille/matchmaker/util"
 	"flag"
-	"os"
+	"github.com/Tehem/matchmaker/match"
+	"github.com/Tehem/matchmaker/util"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"log"
+	"os"
 	"runtime/pprof"
-	"github.com/rossille/matchmaker/gcalendar"
-	"google.golang.org/api/calendar/v3"
-	"github.com/transcovo/go-chpr-logger"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -31,29 +29,6 @@ func main() {
 	problem, err := match.LoadProblem(yml)
 	solution := match.Solve(problem)
 
-	cal, err := gcalendar.GetGoogleCalendarService()
-	util.PanicOnError(err, "Can't get gcalendar client")
-
-	for _, session := range solution.Sessions {
-		attendees := []*calendar.EventAttendee{}
-
-		for _, person := range session.Reviewers.People {
-			attendees = append(attendees, &calendar.EventAttendee{
-				Email: person.Email,
-			})
-		}
-
-		_, err := cal.Events.Insert("chauffeur-prive.com_k23ttdrv7g0l5i2vjj1f3s8voc@group.calendar.google.com", &calendar.Event{
-			Start: &calendar.EventDateTime{
-				DateTime: gcalendar.FormatTime(session.Range.Start),
-			},
-			End: &calendar.EventDateTime{
-				DateTime: gcalendar.FormatTime(session.Range.End),
-			},
-			Summary: session.GetDisplayName(),
-			Attendees: attendees,
-		}).Do()
-		util.PanicOnError(err, "Can't create event")
-		logger.Info("✔ " + session.GetDisplayName())
-	}
+	planYml, _ := yaml.Marshal(solution)
+	ioutil.WriteFile("./planning.yml", planYml, os.FileMode(0644))
 }

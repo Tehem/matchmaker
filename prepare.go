@@ -3,18 +3,20 @@ package main
 import (
 	"google.golang.org/api/calendar/v3"
 	"github.com/transcovo/go-chpr-logger"
+	"strconv"
 	"time"
-	"github.com/rossille/matchmaker/gcalendar"
-	"github.com/rossille/matchmaker/match"
+	"github.com/Tehem/matchmaker/gcalendar"
+	"github.com/Tehem/matchmaker/match"
 	logrus2 "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
-	"github.com/rossille/matchmaker/util"
+	"github.com/Tehem/matchmaker/util"
 )
 
-func FirstDayOfISOWeek() time.Time {
+func FirstDayOfISOWeek(weekShift int) time.Time {
 	date := time.Now()
 	date = time.Date(date.Year(), date.Month(), date.Day(), date.Hour(), 0, 0, 0, date.Location())
+	date = date.AddDate(0, 0, 7 * weekShift)
 
 	// iterate to Monday
 	for !(date.Weekday() == time.Monday && date.Hour() == 0) {
@@ -58,8 +60,8 @@ func GetWeekWorkRanges(beginOfWeek time.Time) chan *match.Range {
 
 	go func() {
 		for day := 0; day < 5; day ++ {
-			ranges <- GetWorkRange(beginOfWeek, day, 10, 0, 12, 30)
-			ranges <- GetWorkRange(beginOfWeek, day, 13, 30, 19, 0)
+			ranges <- GetWorkRange(beginOfWeek, day, 10, 0, 12, 0)
+			ranges <- GetWorkRange(beginOfWeek, day, 14, 0, 18, 30)
 		}
 		close(ranges)
 	}()
@@ -81,7 +83,7 @@ func ToSlice(c chan *match.Range) []*match.Range {
 	return s
 }
 
-func loadProblem() *match.Problem {
+func loadProblem(weekShift int) *match.Problem {
 	people, err := match.LoadPersons("./persons.yml")
 	util.PanicOnError(err, "Can't load people")
 	logger.WithField("count", len(people)).Info("People loaded")
@@ -90,7 +92,8 @@ func loadProblem() *match.Problem {
 	util.PanicOnError(err, "Can't get gcalendar client")
 	logger.Info("Connected to google calendar")
 
-	beginOfWeek := FirstDayOfISOWeek()
+	beginOfWeek := FirstDayOfISOWeek(weekShift)
+	logger.WithField("weekFirstDay", beginOfWeek).Info("Planning for week")
 
 	workRanges := ToSlice(GetWeekWorkRanges(beginOfWeek))
 	busyTimes := []*match.BusyTime{}
@@ -111,7 +114,7 @@ func loadProblem() *match.Problem {
 					},
 				},
 			}).Do()
-			util.PanicOnError(err, "Can't retrive free/busy data for "+person.Email)
+			util.PanicOnError(err, "Can't retrieve ve free/busy data for "+person.Email)
 			busyTimePeriods := result.Calendars[person.Email].Busy
 			println(person.Email + ":")
 			for _, busyTimePeriod := range busyTimePeriods {
@@ -135,7 +138,18 @@ func loadProblem() *match.Problem {
 }
 
 func main() {
-	problem := loadProblem()
+	weekShift := ""
+	if len(os.Args) > 1 {
+		weekShift = os.Args[1]
+	}
+	if weekShift == "" {
+		weekShift = "0"
+	}
+	weekShiftInt, err := strconv.Atoi(weekShift)
+	if err != nil {
+		util.PanicOnError(err, "Invalid value for weekShift parameter, must be integer value")
+	}
+	problem := loadProblem(weekShiftInt)
 	yml, _ := problem.ToYaml()
 	ioutil.WriteFile("./problem.yml", yml, os.FileMode(0644))
 }

@@ -63,7 +63,7 @@ func printSessions(sessions []*ReviewSession) {
 func printSession(session *ReviewSession) {
 	println(session.Reviewers.People[0].Email + "\t" +
 		session.Reviewers.People[1].Email + "\t" +
-		session.Range.Start.Format(time.Stamp) + "\t" +
+		session.Range.Start.Format(time.Stamp) + "\t->\t" +
 		session.Range.End.Format(time.Stamp) + "\t")
 }
 
